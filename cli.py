@@ -1669,6 +1669,7 @@ class HermesCLI:
 
         self._explicit_api_key = api_key
         self._explicit_base_url = base_url
+        self._explicit_model_switch = False  # Set True when user switches via /model
 
         # Provider selection is resolved lazily at use-time via _ensure_runtime_credentials().
         self.requested_provider = (
@@ -2128,6 +2129,10 @@ class HermesCLI:
 
     def _normalize_model_for_provider(self, resolved_provider: str) -> bool:
         """Normalize provider-specific model IDs and routing."""
+        # Skip normalization if user explicitly switched model via /model.
+        # Their choice takes precedence over provider-specific transformations.
+        if getattr(self, "_explicit_model_switch", False):
+            return False
         current_model = (self.model or "").strip()
         changed = False
 
@@ -2730,9 +2735,11 @@ class HermesCLI:
         # `hermes chat --model <provider-name>` sends the provider name
         # (e.g. "my-provider") as the model string to the API instead of
         # the configured model (e.g. "qwen3.6-plus"), causing 400 errors.
+        # Skip if user explicitly switched model via /model (preserve their choice).
         runtime_model = runtime.get("model")
         if runtime_model and isinstance(runtime_model, str):
-            self.model = runtime_model
+            if not getattr(self, "_explicit_model_switch", False):
+                self.model = runtime_model
 
         # If model is still empty (e.g. user ran `hermes auth add openai-codex`
         # without `hermes model`), fall back to the provider's first catalog
@@ -4550,6 +4557,7 @@ class HermesCLI:
         self.model = result.new_model
         self.provider = result.target_provider
         self.requested_provider = result.target_provider
+        self._explicit_model_switch = True  # Prevent runtime resolver from overwriting
         if result.api_key:
             self.api_key = result.api_key
             self._explicit_api_key = result.api_key
@@ -4763,10 +4771,12 @@ class HermesCLI:
         # Apply to CLI state.
         # Update requested_provider so _ensure_runtime_credentials() doesn't
         # overwrite the switch on the next turn (it re-resolves from this).
+        # Set _explicit_model_switch flag so runtime resolver skips its model override.
         old_model = self.model
         self.model = result.new_model
         self.provider = result.target_provider
         self.requested_provider = result.target_provider
+        self._explicit_model_switch = True  # Prevent runtime resolver from overwriting
         if result.api_key:
             self.api_key = result.api_key
             self._explicit_api_key = result.api_key

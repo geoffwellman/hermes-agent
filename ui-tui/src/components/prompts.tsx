@@ -1,5 +1,5 @@
-import { Box, Text, useInput } from '@hermes/ink'
-import { useState } from 'react'
+import { Box, Text, useInput, useTerminalNotification } from '@hermes/ink'
+import { useEffect, useState } from 'react'
 
 import { isMac } from '../lib/platform.js'
 import type { Theme } from '../theme.js'
@@ -13,6 +13,11 @@ const CMD_PREVIEW_LINES = 10
 
 export function ApprovalPrompt({ onChoice, req, t }: ApprovalPromptProps) {
   const [sel, setSel] = useState(0)
+  const { notifyBell } = useTerminalNotification()
+
+  useEffect(() => {
+    notifyBell()
+  }, [notifyBell, req.command, req.description])
 
   useInput((ch, key) => {
     if (key.upArrow && sel > 0) {
